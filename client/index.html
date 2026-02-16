@@ -1442,7 +1442,14 @@ function ShiftTabs({ selectedShift, onShiftChange }) {
 function TaskList() {
   const today = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(today);
-  const [selectedShift, setSelectedShift] = useState('MORNING');
+  const [selectedShift, setSelectedShift] = useState(() => {
+    return localStorage.getItem('selectedShift') || 'MORNING';
+  });
+
+  // Persist shift selection
+  useEffect(() => {
+    localStorage.setItem('selectedShift', selectedShift);
+  }, [selectedShift]);
   const [completionFilter, setCompletionFilter] = useState('ALL');
   const [tasks, setTasks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
