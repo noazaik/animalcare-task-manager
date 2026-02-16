@@ -22,6 +22,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Root health check for Railway
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // Serve static frontend in production
 if (process.env.NODE_ENV === 'production') {
   const clientPath = path.join(__dirname, '../../client');
@@ -31,7 +36,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 
   // Run cleanup on startup
