@@ -8,9 +8,9 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // GET /api/users - Get all users (admin only)
-router.get('/', requireAdmin, (req, res) => {
+router.get('/', requireAdmin, async (req, res) => {
   try {
-    const users = db.getAllUsers();
+    const users = await db.getAllUsers();
     res.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -19,7 +19,7 @@ router.get('/', requireAdmin, (req, res) => {
 });
 
 // PATCH /api/users/:id/role - Update user role (admin only)
-router.patch('/:id/role', requireAdmin, (req, res) => {
+router.patch('/:id/role', requireAdmin, async (req, res) => {
   const userId = parseInt(req.params.id);
   const { role } = req.body;
 
@@ -33,7 +33,7 @@ router.patch('/:id/role', requireAdmin, (req, res) => {
   }
 
   try {
-    const user = db.updateUserRole(userId, role);
+    const user = await db.updateUserRole(userId, role);
     if (!user) {
       return res.status(404).json({ error: 'משתמש לא נמצא' });
     }

@@ -28,7 +28,7 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const user = db.findUserByEmail(email);
+    const user = await db.findUserByEmail(email);
 
     if (!user) {
       return res.status(401).json({ error: 'אימייל או סיסמה שגויים' });
@@ -77,13 +77,13 @@ router.post('/signup', async (req, res) => {
   }
 
   try {
-    const existingUser = db.findUserByEmail(email);
+    const existingUser = await db.findUserByEmail(email);
     if (existingUser) {
       return res.status(400).json({ error: 'אימייל זה כבר קיים במערכת' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = db.createUser({
+    const user = await db.createUser({
       email: email.toLowerCase(),
       password: hashedPassword,
       fullName,
@@ -128,14 +128,14 @@ router.post('/google', async (req, res) => {
 
     const { sub: googleId, email, name } = payload;
 
-    let user = db.findUserByGoogleId(googleId);
+    let user = await db.findUserByGoogleId(googleId);
 
     if (!user) {
       // Check if user exists with same email
-      user = db.findUserByEmail(email);
+      user = await db.findUserByEmail(email);
       if (!user) {
         // Create new user
-        user = db.createUser({
+        user = await db.createUser({
           email: email.toLowerCase(),
           fullName: name,
           googleId,

@@ -8,9 +8,9 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Helper: Get tasks for a specific date and shift based on recurrence rules
-function getTasksForDate(date, shift) {
-  const allTasks = db.getAllTasks();
-  const completions = db.getCompletionsForDate(date);
+async function getTasksForDate(date, shift) {
+  const allTasks = await db.getAllTasks();
+  const completions = await db.getCompletionsForDate(date);
   const completionSet = new Set(completions.map(c => c.taskId));
 
   const startOfDay = new Date(date);
@@ -56,13 +56,13 @@ function getTasksForDate(date, shift) {
 }
 
 // GET /api/tasks - Get tasks for a specific date and shift
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const dateParam = req.query.date;
   const shift = req.query.shift; // MORNING or EVENING
   const date = dateParam ? new Date(dateParam) : new Date();
 
   try {
-    const tasks = getTasksForDate(date, shift);
+    const tasks = await getTasksForDate(date, shift);
     res.json(tasks);
   } catch (error) {
     console.error('Error fetching tasks:', error);
@@ -71,7 +71,7 @@ router.get('/', (req, res) => {
 });
 
 // POST /api/tasks - Create a new task (admin only)
-router.post('/', requireAdmin, (req, res) => {
+router.post('/', requireAdmin, async (req, res) => {
   const { title, description, dueDate, startTime, endTime, recurrence, shift } = req.body;
 
   if (!title) {
@@ -79,7 +79,7 @@ router.post('/', requireAdmin, (req, res) => {
   }
 
   try {
-    const task = db.createTask({
+    const task = await db.createTask({
       title,
       description: description || null,
       dueDate: dueDate ? new Date(dueDate).toISOString() : new Date().toISOString(),
@@ -97,7 +97,7 @@ router.post('/', requireAdmin, (req, res) => {
 });
 
 // PUT /api/tasks/reorder - Reorder tasks (admin only) - Must be before /:id
-router.put('/reorder', requireAdmin, (req, res) => {
+router.put('/reorder', requireAdmin, async (req, res) => {
   const { taskIds } = req.body;
 
   if (!Array.isArray(taskIds)) {
@@ -105,7 +105,7 @@ router.put('/reorder', requireAdmin, (req, res) => {
   }
 
   try {
-    db.reorderTasks(taskIds);
+    await db.reorderTasks(taskIds);
     res.json({ success: true });
   } catch (error) {
     console.error('Error reordering tasks:', error);
@@ -114,7 +114,7 @@ router.put('/reorder', requireAdmin, (req, res) => {
 });
 
 // PUT /api/tasks/:id - Update a task (admin only)
-router.put('/:id', requireAdmin, (req, res) => {
+router.put('/:id', requireAdmin, async (req, res) => {
   const taskId = parseInt(req.params.id);
   const { title, description, dueDate, startTime, endTime, recurrence, shift } = req.body;
 
@@ -128,7 +128,7 @@ router.put('/:id', requireAdmin, (req, res) => {
     if (recurrence) updates.recurrence = recurrence;
     if (shift) updates.shift = shift;
 
-    const task = db.updateTask(taskId, updates);
+    const task = await db.updateTask(taskId, updates);
     if (!task) {
       return res.status(404).json({ error: 'משימה לא נמצאה' });
     }
@@ -141,11 +141,11 @@ router.put('/:id', requireAdmin, (req, res) => {
 });
 
 // DELETE /api/tasks/:id - Delete a task (admin only)
-router.delete('/:id', requireAdmin, (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   const taskId = parseInt(req.params.id);
 
   try {
-    const deleted = db.deleteTask(taskId);
+    const deleted = await db.deleteTask(taskId);
     if (!deleted) {
       return res.status(404).json({ error: 'משימה לא נמצאה' });
     }
@@ -158,21 +158,21 @@ router.delete('/:id', requireAdmin, (req, res) => {
 });
 
 // PATCH /api/tasks/:id/complete - Toggle task completion (all users)
-router.patch('/:id/complete', (req, res) => {
+router.patch('/:id/complete', async (req, res) => {
   const taskId = parseInt(req.params.id);
   const { complete, date } = req.body;
   const targetDate = date ? new Date(date) : new Date();
 
   try {
-    const task = db.getTaskById(taskId);
+    const task = await db.getTaskById(taskId);
     if (!task) {
       return res.status(404).json({ error: 'משימה לא נמצאה' });
     }
 
     if (task.recurrence === 'NONE') {
-      db.updateTask(taskId, { isComplete: complete });
+      await db.updateTask(taskId, { isComplete: complete });
     } else {
-      db.setCompletion(taskId, targetDate, complete);
+      await db.setCompletion(taskId, targetDate, complete);
     }
 
     res.json({ success: true });
