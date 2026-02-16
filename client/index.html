@@ -722,8 +722,7 @@ body {
 
   .btn-logout,
   .btn-view-toggle {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
+    display: none;
   }
 
   .view-as-banner {
@@ -1476,12 +1475,28 @@ function TaskList() {
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
   const toggleComplete = async (id, complete) => {
-    await fetch(`${API_BASE}/tasks/${id}/complete`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ complete, date: selectedDate })
-    });
-    fetchTasks();
+    // Optimistic update - update local state immediately
+    setTasks(prevTasks => prevTasks.map(task =>
+      task.id === id
+        ? { ...task, isCompleteForDate: complete, isComplete: complete }
+        : task
+    ));
+
+    // Then sync with server
+    try {
+      await fetch(`${API_BASE}/tasks/${id}/complete`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ complete, date: selectedDate })
+      });
+    } catch (err) {
+      // Revert on error
+      setTasks(prevTasks => prevTasks.map(task =>
+        task.id === id
+          ? { ...task, isCompleteForDate: !complete, isComplete: !complete }
+          : task
+      ));
+    }
   };
 
   const handleCreateTask = async (data) => {
@@ -1656,9 +1671,7 @@ function TaskList() {
 
 // Bottom Navigation for Mobile
 function BottomNav({ currentPage, onNavigate }) {
-  const { isActualAdmin } = useAuth();
-
-  if (!isActualAdmin) return null;
+  const { isActualAdmin, viewAsUser, toggleViewAsUser, logout } = useAuth();
 
   return (
     <nav className="bottom-nav">
@@ -1669,12 +1682,30 @@ function BottomNav({ currentPage, onNavigate }) {
         <span className="bottom-nav-icon">📋</span>
         <span>משימות</span>
       </button>
+      {isActualAdmin && (
+        <button
+          className={`bottom-nav-item ${currentPage === 'settings' ? 'active' : ''}`}
+          onClick={() => onNavigate('settings')}
+        >
+          <span className="bottom-nav-icon">⚙️</span>
+          <span>הגדרות</span>
+        </button>
+      )}
+      {isActualAdmin && (
+        <button
+          className={`bottom-nav-item ${viewAsUser ? 'active' : ''}`}
+          onClick={toggleViewAsUser}
+        >
+          <span className="bottom-nav-icon">{viewAsUser ? '👤' : '👁️'}</span>
+          <span>{viewAsUser ? 'מנהל' : 'צפה כמשתמש'}</span>
+        </button>
+      )}
       <button
-        className={`bottom-nav-item ${currentPage === 'settings' ? 'active' : ''}`}
-        onClick={() => onNavigate('settings')}
+        className="bottom-nav-item"
+        onClick={logout}
       >
-        <span className="bottom-nav-icon">⚙️</span>
-        <span>הגדרות</span>
+        <span className="bottom-nav-icon">🚪</span>
+        <span>התנתק</span>
       </button>
     </nav>
   );
@@ -1689,7 +1720,7 @@ function App() {
   if (!user) return <LoginForm />;
 
   return (
-    <div className={`app-container ${isActualAdmin ? 'has-bottom-nav' : ''}`}>
+    <div className="app-container has-bottom-nav">
       {viewAsUser && <div className="view-as-banner">מצב צפייה כמשתמש רגיל - פעולות מנהל מוסתרות</div>}
       <Header currentPage={currentPage} onNavigate={setCurrentPage} />
       <main className="main-content">
