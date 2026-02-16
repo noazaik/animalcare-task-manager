@@ -1,0 +1,139 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@example.com",
+      "fullName": "מנהל מערכת",
+      "password": "$2a$10$ErHJiUqOOJxjjojIQkb2kug/6ZOMuCh6odkyQIix6UC4GrQAZktma",
+      "role": "ADMIN",
+      "createdAt": "2026-02-12T16:06:13.515Z"
+    },
+    {
+      "id": 2,
+      "username": "user",
+      "email": "user@example.com",
+      "fullName": "משתמש רגיל",
+      "password": "$2a$10$5XDy4LmSGDCJJhNG/s9cMeyzJbMgu4LdkMNlxjPrzYRu2aQz9BcgO",
+      "role": "USER",
+      "createdAt": "2026-02-12T16:06:13.598Z"
+    },
+    {
+      "id": 3,
+      "email": "noadeutsch87@gmail.com",
+      "password": "$2a$10$Orj31jZ8TxRkxdlL7AuOyebrLHRi38j1q6S/5PpfAs3XirFLXPJpu",
+      "fullName": "נועה דויטש",
+      "role": "ADMIN",
+      "createdAt": "2026-02-16T14:27:19.147Z"
+    }
+  ],
+  "tasks": [
+    {
+      "id": 1,
+      "title": "האכלת בעלי החיים",
+      "description": "האכלת כל בעלי החיים בבוקר",
+      "dueDate": "2026-02-11T22:00:00.000Z",
+      "startTime": "06:00",
+      "endTime": "07:00",
+      "recurrence": "DAILY",
+      "shift": "MORNING",
+      "sortOrder": 1,
+      "isComplete": false,
+      "createdAt": "2026-02-12T16:06:13.600Z",
+      "updatedAt": "2026-02-12T16:06:13.600Z"
+    },
+    {
+      "id": 3,
+      "title": "בדיקת מים",
+      "description": "בדיקה והחלפת מי שתייה",
+      "dueDate": "2026-02-11T22:00:00.000Z",
+      "startTime": "07:00",
+      "endTime": "07:30",
+      "recurrence": "DAILY",
+      "shift": "MORNING",
+      "sortOrder": 0,
+      "isComplete": false,
+      "createdAt": "2026-02-12T16:06:13.602Z",
+      "updatedAt": "2026-02-12T16:06:13.602Z"
+    },
+    {
+      "id": 4,
+      "title": "ביקור וטרינר",
+      "description": "ביקור שבועי של הוטרינר",
+      "dueDate": "2026-02-11T22:00:00.000Z",
+      "startTime": "10:00",
+      "endTime": "12:00",
+      "recurrence": "WEEKLY",
+      "shift": "MORNING",
+      "sortOrder": 2,
+      "isComplete": false,
+      "createdAt": "2026-02-12T16:06:13.602Z",
+      "updatedAt": "2026-02-12T16:06:13.602Z"
+    },
+    {
+      "id": 5,
+      "title": "הזמנת מזון",
+      "description": "הזמנת מזון חודשית",
+      "dueDate": "2026-02-11T22:00:00.000Z",
+      "startTime": "09:00",
+      "endTime": "09:30",
+      "recurrence": "MONTHLY",
+      "shift": "MORNING",
+      "sortOrder": 3,
+      "isComplete": false,
+      "createdAt": "2026-02-12T16:06:13.603Z",
+      "updatedAt": "2026-02-12T16:06:13.603Z"
+    },
+    {
+      "id": 8,
+      "title": "האכלת ערב",
+      "description": "האכלת כל בעלי החיים בערב",
+      "dueDate": "2026-02-11T22:00:00.000Z",
+      "startTime": "17:00",
+      "endTime": "18:00",
+      "recurrence": "DAILY",
+      "shift": "EVENING",
+      "sortOrder": 1,
+      "isComplete": false,
+      "createdAt": "2026-02-12T18:00:00.000Z",
+      "updatedAt": "2026-02-12T18:00:00.000Z"
+    },
+    {
+      "id": 9,
+      "title": "בדיקת כלובים",
+      "description": "בדיקה שכל הכלובים סגורים לפני הלילה",
+      "dueDate": "2026-02-11T22:00:00.000Z",
+      "startTime": "19:00",
+      "endTime": "19:30",
+      "recurrence": "DAILY",
+      "shift": "EVENING",
+      "sortOrder": 2,
+      "isComplete": false,
+      "createdAt": "2026-02-12T18:00:00.000Z",
+      "updatedAt": "2026-02-12T18:00:00.000Z"
+    },
+    {
+      "id": 10,
+      "title": "סגירת שערים",
+      "description": "סגירת כל השערים והדלתות",
+      "dueDate": "2026-02-11T22:00:00.000Z",
+      "startTime": "20:00",
+      "endTime": "20:30",
+      "recurrence": "DAILY",
+      "shift": "EVENING",
+      "sortOrder": 3,
+      "isComplete": false,
+      "createdAt": "2026-02-12T18:00:00.000Z",
+      "updatedAt": "2026-02-12T18:00:00.000Z"
+    }
+  ],
+  "taskCompletions": [
+    {
+      "taskId": 1,
+      "date": "2026-02-12T00:00:00.000Z",
+      "createdAt": "2026-02-12T17:45:14.858Z"
+    }
+  ],
+  "nextUserId": 4,
+  "nextTaskId": 11
+}

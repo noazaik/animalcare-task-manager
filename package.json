@@ -1,0 +1,13 @@
+{
+  "name": "animal-care-task-manager",
+  "version": "1.0.0",
+  "description": "Animal care task manager app",
+  "scripts": {
+    "start": "NODE_ENV=production node server/src/index.js",
+    "start:windows": "set NODE_ENV=production && node server/src/index.js",
+    "install:all": "cd server && npm install"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
