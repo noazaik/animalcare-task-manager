@@ -1467,7 +1467,6 @@ function TaskItem({ task, onToggleComplete, onEdit, onDelete, onDragStart, onDra
           {task.recurrence !== 'NONE' && <span className="recurrence-badge">{recurrenceLabels[task.recurrence]}</span>}
         </div>
         {task.description && <p className="task-description">{task.description}</p>}
-        <div className="task-time">{task.startTime} - {task.endTime}</div>
       </div>
       {isAdmin && (
         <div className="task-actions">
