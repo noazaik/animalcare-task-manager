@@ -617,6 +617,16 @@ body {
   margin-top: 0.25rem;
 }
 
+.task-description a {
+  color: var(--primary-color);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.task-description a:hover {
+  text-decoration: underline;
+}
+
 .task-time {
   font-size: 0.875rem;
   color: var(--text-secondary);
@@ -1431,6 +1441,19 @@ function TaskFilters({ selectedDate, onDateChange }) {
   );
 }
 
+// Linkify text - convert URLs to clickable links
+function Linkify({ text }) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  return parts.map((part, i) => {
+    if (part.match(urlRegex)) {
+      return <a key={i} href={part} target="_blank" rel="noopener noreferrer">{part}</a>;
+    }
+    return part;
+  });
+}
+
 // Task Item
 const recurrenceLabels = { NONE: 'חד פעמי', DAILY: 'יומי', WEEKLY: 'שבועי', MONTHLY: 'חודשי' };
 
@@ -1466,7 +1489,7 @@ function TaskItem({ task, onToggleComplete, onEdit, onDelete, onDragStart, onDra
           <h3 className="task-title">{task.title}</h3>
           {task.recurrence !== 'NONE' && <span className="recurrence-badge">{recurrenceLabels[task.recurrence]}</span>}
         </div>
-        {task.description && <p className="task-description">{task.description}</p>}
+        {task.description && <p className="task-description"><Linkify text={task.description} /></p>}
       </div>
       {isAdmin && (
         <div className="task-actions">
