@@ -1488,7 +1488,7 @@ function TaskForm({ task, selectedShift, onSubmit, onCancel }) {
     dueDate: task?.dueDate?.split('T')[0] || today,
     startTime: task?.startTime || '06:00',
     endTime: task?.endTime || '14:00',
-    recurrence: task?.recurrence || 'NONE',
+    recurrence: task?.recurrence || 'DAILY',
     shift: task?.shift || selectedShift || 'MORNING'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
