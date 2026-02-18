@@ -1607,8 +1607,8 @@ function TaskList() {
   const touchStartY = React.useRef(null);
   const touchCurrentId = React.useRef(null);
 
-  const fetchTasks = useCallback(async () => {
-    setIsLoading(true);
+  const fetchTasks = useCallback(async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE}/tasks?date=${selectedDate}&shift=${selectedShift}`, { headers: getAuthHeaders() });
       if (!response.ok) throw new Error('שגיאה בטעינת משימות');
@@ -1622,7 +1622,11 @@ function TaskList() {
     }
   }, [selectedDate, selectedShift]);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  const isInitialLoad = React.useRef(true);
+  useEffect(() => {
+    fetchTasks(isInitialLoad.current);
+    isInitialLoad.current = false;
+  }, [fetchTasks]);
 
   const toggleComplete = async (id, complete) => {
     // Optimistic update - update local state immediately
