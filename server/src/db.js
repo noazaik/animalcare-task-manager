@@ -59,6 +59,14 @@ async function initializePostgres() {
       )
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invited_emails (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Seed admin user if no users exist
     const userCount = await client.query('SELECT COUNT(*) FROM users');
     if (parseInt(userCount.rows[0].count) === 0) {
@@ -82,6 +90,7 @@ const defaultData = {
   users: [],
   tasks: [],
   taskCompletions: [],
+  invitedEmails: [],
   nextUserId: 1,
   nextTaskId: 1
 };
@@ -466,6 +475,74 @@ async function cleanupOldCompletions() {
   return before - after;
 }
 
+// Invited emails operations
+async function getInvitedEmails() {
+  if (pool) {
+    const result = await pool.query('SELECT id, email, created_at FROM invited_emails ORDER BY created_at DESC');
+    return result.rows.map(row => ({
+      id: row.id,
+      email: row.email,
+      createdAt: row.created_at
+    }));
+  }
+  const db = readDb();
+  return db.invitedEmails || [];
+}
+
+async function isEmailInvited(email) {
+  if (pool) {
+    const result = await pool.query('SELECT id FROM invited_emails WHERE LOWER(email) = LOWER($1)', [email]);
+    return result.rows.length > 0;
+  }
+  const db = readDb();
+  return (db.invitedEmails || []).some(inv => inv.email.toLowerCase() === email.toLowerCase());
+}
+
+async function addInvitedEmail(email) {
+  if (pool) {
+    const result = await pool.query(
+      'INSERT INTO invited_emails (email) VALUES (LOWER($1)) ON CONFLICT (email) DO NOTHING RETURNING *',
+      [email]
+    );
+    if (result.rows.length === 0) {
+      // Email already exists
+      const existing = await pool.query('SELECT * FROM invited_emails WHERE LOWER(email) = LOWER($1)', [email]);
+      return { id: existing.rows[0].id, email: existing.rows[0].email, createdAt: existing.rows[0].created_at };
+    }
+    return { id: result.rows[0].id, email: result.rows[0].email, createdAt: result.rows[0].created_at };
+  }
+  const db = readDb();
+  if (!db.invitedEmails) db.invitedEmails = [];
+
+  const existing = db.invitedEmails.find(inv => inv.email.toLowerCase() === email.toLowerCase());
+  if (existing) return existing;
+
+  const newInvite = {
+    id: Date.now(),
+    email: email.toLowerCase(),
+    createdAt: new Date().toISOString()
+  };
+  db.invitedEmails.push(newInvite);
+  writeDb(db);
+  return newInvite;
+}
+
+async function removeInvitedEmail(id) {
+  if (pool) {
+    const result = await pool.query('DELETE FROM invited_emails WHERE id = $1 RETURNING id', [id]);
+    return result.rows.length > 0;
+  }
+  const db = readDb();
+  if (!db.invitedEmails) return false;
+
+  const index = db.invitedEmails.findIndex(inv => inv.id === id);
+  if (index === -1) return false;
+
+  db.invitedEmails.splice(index, 1);
+  writeDb(db);
+  return true;
+}
+
 // Initialize database on startup
 if (pool) {
   initializePostgres().catch(err => console.error('Failed to initialize PostgreSQL:', err));
@@ -490,5 +567,9 @@ module.exports = {
   reorderTasks,
   getCompletionsForDate,
   setCompletion,
-  cleanupOldCompletions
+  cleanupOldCompletions,
+  getInvitedEmails,
+  isEmailInvited,
+  addInvitedEmail,
+  removeInvitedEmail
 };

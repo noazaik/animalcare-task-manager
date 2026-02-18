@@ -234,6 +234,61 @@ body {
   margin-top: 0.25rem;
 }
 
+.invite-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.invite-input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.invite-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.invite-list {
+  margin-bottom: 1rem;
+}
+
+.settings-subtitle {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.invite-card {
+  background: var(--card-bg);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.invite-email {
+  font-size: 0.9rem;
+}
+
+.invite-status {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.invite-status.registered {
+  background: var(--success-color);
+  color: white;
+}
+
 /* Bottom Navigation */
 .bottom-nav {
   display: none;
@@ -1171,12 +1226,15 @@ function Header({ currentPage, onNavigate }) {
   );
 }
 
-// Settings Page - User List
+// Settings Page - User List and Invites
 function SettingsPage() {
   const [users, setUsers] = useState([]);
+  const [invites, setInvites] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [updatingUserId, setUpdatingUserId] = useState(null);
+  const [newInviteEmail, setNewInviteEmail] = useState('');
+  const [isAddingInvite, setIsAddingInvite] = useState(false);
   const { user: currentUser } = useAuth();
 
   const fetchUsers = async () => {
@@ -1187,13 +1245,22 @@ function SettingsPage() {
       setUsers(data);
     } catch (err) {
       setError(err.message);
-    } finally {
-      setIsLoading(false);
+    }
+  };
+
+  const fetchInvites = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/users/invites`, { headers: getAuthHeaders() });
+      if (!response.ok) throw new Error('שגיאה בטעינת הזמנות');
+      const data = await response.json();
+      setInvites(data);
+    } catch (err) {
+      setError(err.message);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
+    Promise.all([fetchUsers(), fetchInvites()]).finally(() => setIsLoading(false));
   }, []);
 
   const handleRoleChange = async (userId, newRole) => {
@@ -1216,14 +1283,90 @@ function SettingsPage() {
     }
   };
 
-  const getRoleLabel = (role) => role === 'ADMIN' ? 'מנהל' : 'משתמש';
+  const handleAddInvite = async (e) => {
+    e.preventDefault();
+    if (!newInviteEmail.trim()) return;
 
-  if (isLoading) return <div className="loading">טוען משתמשים...</div>;
+    setIsAddingInvite(true);
+    try {
+      const response = await fetch(`${API_BASE}/users/invites`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ email: newInviteEmail.trim() })
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'שגיאה בהוספת הזמנה');
+      }
+      setNewInviteEmail('');
+      await fetchInvites();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsAddingInvite(false);
+    }
+  };
+
+  const handleRemoveInvite = async (inviteId) => {
+    if (!confirm('האם אתה בטוח שברצונך להסיר הזמנה זו?')) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/users/invites/${inviteId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'שגיאה במחיקת הזמנה');
+      }
+      await fetchInvites();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // Check if an invited email is already registered
+  const isEmailRegistered = (email) => {
+    return users.some(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+  };
+
+  if (isLoading) return <div className="loading">טוען...</div>;
   if (error) return <div className="error-message">{error}</div>;
 
   return (
     <div className="settings-container">
-      <h2 className="settings-title">ניהול משתמשים</h2>
+      <h2 className="settings-title">הזמנת משתמשים</h2>
+      <form onSubmit={handleAddInvite} className="invite-form">
+        <input
+          type="email"
+          placeholder="הזן כתובת אימייל להזמנה"
+          value={newInviteEmail}
+          onChange={(e) => setNewInviteEmail(e.target.value)}
+          disabled={isAddingInvite}
+          className="invite-input"
+        />
+        <button type="submit" disabled={isAddingInvite || !newInviteEmail.trim()} className="btn-primary">
+          {isAddingInvite ? 'מוסיף...' : 'הזמן'}
+        </button>
+      </form>
+
+      {invites.length > 0 && (
+        <div className="invite-list">
+          <h3 className="settings-subtitle">הזמנות פעילות</h3>
+          {invites.map(invite => (
+            <div key={invite.id} className="invite-card">
+              <span className="invite-email">{invite.email}</span>
+              {isEmailRegistered(invite.email) ? (
+                <span className="invite-status registered">נרשם</span>
+              ) : (
+                <button onClick={() => handleRemoveInvite(invite.id)} className="btn-icon" title="הסר הזמנה">🗑️</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h2 className="settings-title" style={{marginTop: '2rem'}}>ניהול משתמשים</h2>
       <div className="user-list">
         {users.length === 0 ? (
           <div className="empty-state">אין משתמשים להצגה</div>

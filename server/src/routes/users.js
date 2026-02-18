@@ -49,4 +49,54 @@ router.patch('/:id/role', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/users/invites - Get all invited emails (admin only)
+router.get('/invites', requireAdmin, async (req, res) => {
+  try {
+    const invites = await db.getInvitedEmails();
+    res.json(invites);
+  } catch (error) {
+    console.error('Error fetching invites:', error);
+    res.status(500).json({ error: 'שגיאה בטעינת הזמנות' });
+  }
+});
+
+// POST /api/users/invites - Add invited email (admin only)
+router.post('/invites', requireAdmin, async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'אימייל נדרש' });
+  }
+
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'כתובת אימייל לא תקינה' });
+  }
+
+  try {
+    const invite = await db.addInvitedEmail(email);
+    res.status(201).json(invite);
+  } catch (error) {
+    console.error('Error adding invite:', error);
+    res.status(500).json({ error: 'שגיאה בהוספת הזמנה' });
+  }
+});
+
+// DELETE /api/users/invites/:id - Remove invited email (admin only)
+router.delete('/invites/:id', requireAdmin, async (req, res) => {
+  const inviteId = parseInt(req.params.id);
+
+  try {
+    const deleted = await db.removeInvitedEmail(inviteId);
+    if (!deleted) {
+      return res.status(404).json({ error: 'הזמנה לא נמצאה' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error removing invite:', error);
+    res.status(500).json({ error: 'שגיאה במחיקת הזמנה' });
+  }
+});
+
 module.exports = router;

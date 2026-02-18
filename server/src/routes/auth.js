@@ -77,6 +77,12 @@ router.post('/signup', async (req, res) => {
   }
 
   try {
+    // Check if email is invited
+    const isInvited = await db.isEmailInvited(email);
+    if (!isInvited) {
+      return res.status(403).json({ error: 'אימייל זה לא הוזמן למערכת. פנה למנהל לקבלת הזמנה.' });
+    }
+
     const existingUser = await db.findUserByEmail(email);
     if (existingUser) {
       return res.status(400).json({ error: 'אימייל זה כבר קיים במערכת' });
@@ -134,6 +140,11 @@ router.post('/google', async (req, res) => {
       // Check if user exists with same email
       user = await db.findUserByEmail(email);
       if (!user) {
+        // Check if email is invited before creating new user
+        const isInvited = await db.isEmailInvited(email);
+        if (!isInvited) {
+          return res.status(403).json({ error: 'אימייל זה לא הוזמן למערכת. פנה למנהל לקבלת הזמנה.' });
+        }
         // Create new user
         user = await db.createUser({
           email: email.toLowerCase(),
