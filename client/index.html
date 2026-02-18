@@ -1441,21 +1441,40 @@ function TaskFilters({ selectedDate, onDateChange }) {
   );
 }
 
-// Linkify text - convert URLs to clickable links
+// Linkify text - convert URLs and markdown links to clickable links
 function Linkify({ text }) {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const parts = text.split(urlRegex);
+  // Match markdown links [text](url) or plain URLs
+  const combinedRegex = /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))|(https?:\/\/[^\s]+)/g;
+  const elements = [];
+  let lastIndex = 0;
+  let match;
 
-  return (
-    <React.Fragment>
-      {parts.map((part, i) => {
-        if (part.match(urlRegex)) {
-          return <a key={i} href={part} target="_blank" rel="noopener noreferrer">{part}</a>;
-        }
-        return <React.Fragment key={i}>{part}</React.Fragment>;
-      })}
-    </React.Fragment>
-  );
+  while ((match = combinedRegex.exec(text)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      elements.push(<React.Fragment key={lastIndex}>{text.slice(lastIndex, match.index)}</React.Fragment>);
+    }
+
+    if (match[1]) {
+      // Markdown link [text](url)
+      const linkText = match[2];
+      const url = match[3];
+      elements.push(<a key={match.index} href={url} target="_blank" rel="noopener noreferrer">{linkText}</a>);
+    } else {
+      // Plain URL
+      const url = match[4];
+      elements.push(<a key={match.index} href={url} target="_blank" rel="noopener noreferrer">{url}</a>);
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    elements.push(<React.Fragment key={lastIndex}>{text.slice(lastIndex)}</React.Fragment>);
+  }
+
+  return <React.Fragment>{elements}</React.Fragment>;
 }
 
 // Task Item
