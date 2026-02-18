@@ -1446,12 +1446,16 @@ function Linkify({ text }) {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const parts = text.split(urlRegex);
 
-  return parts.map((part, i) => {
-    if (part.match(urlRegex)) {
-      return <a key={i} href={part} target="_blank" rel="noopener noreferrer">{part}</a>;
-    }
-    return part;
-  });
+  return (
+    <React.Fragment>
+      {parts.map((part, i) => {
+        if (part.match(urlRegex)) {
+          return <a key={i} href={part} target="_blank" rel="noopener noreferrer">{part}</a>;
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>;
+      })}
+    </React.Fragment>
+  );
 }
 
 // Task Item
