@@ -1656,7 +1656,15 @@ function TaskList() {
     if (showLoading) setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE}/tasks?date=${selectedDate}&shift=${selectedShift}`, { headers: getAuthHeaders() });
-      if (!response.ok) throw new Error('שגיאה בטעינת משימות');
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.reload();
+          return;
+        }
+        throw new Error('שגיאה בטעינת משימות');
+      }
       const data = await response.json();
       setTasks(data);
       setError(null);
