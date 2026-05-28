@@ -1433,7 +1433,7 @@ function TaskFilters({ selectedDate, onDateChange }) {
       <div className="date-nav">
         <button onClick={goToPrevDay} className="btn-nav">→</button>
         <input type="date" value={selectedDate} onChange={(e) => onDateChange(e.target.value)} className="date-input" />
-        <button onClick={goToNextDay} className="btn-nav">←</button>
+        <button onClick={goToNextDay} className="btn-nav"><span style={{display:'inline-block',transform:'scaleX(-1)'}}>→</span></button>
       </div>
       <div className="date-display">
         <span>{formatDate(selectedDate)}</span>
