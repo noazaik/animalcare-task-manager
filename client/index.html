@@ -1366,17 +1366,13 @@ function SettingsPage() {
         </button>
       </form>
 
-      {invites.length > 0 && (
+      {invites.filter(invite => !isEmailRegistered(invite.email)).length > 0 && (
         <div className="invite-list">
           <h3 className="settings-subtitle">הזמנות פעילות</h3>
-          {invites.map(invite => (
+          {invites.filter(invite => !isEmailRegistered(invite.email)).map(invite => (
             <div key={invite.id} className="invite-card">
               <span className="invite-email">{invite.email}</span>
-              {isEmailRegistered(invite.email) ? (
-                <span className="invite-status registered">נרשם</span>
-              ) : (
-                <button onClick={() => handleRemoveInvite(invite.id)} className="btn-icon" title="הסר הזמנה">🗑️</button>
-              )}
+              <button onClick={() => handleRemoveInvite(invite.id)} className="btn-icon" title="הסר הזמנה">🗑️</button>
             </div>
           ))}
         </div>
