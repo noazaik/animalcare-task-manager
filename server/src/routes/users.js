@@ -10,7 +10,7 @@ router.use(authenticateToken);
 // GET /api/users - Get all users (admin only)
 router.get('/', requireAdmin, async (req, res) => {
   try {
-    const users = await db.getAllUsers();
+    const users = await db.getAllUsers(req.user.teamId || 1);
     res.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -33,10 +33,15 @@ router.patch('/:id/role', requireAdmin, async (req, res) => {
   }
 
   try {
-    const user = await db.updateUserRole(userId, role);
-    if (!user) {
+    const targetUser = await db.findUserById(userId);
+    if (!targetUser) {
       return res.status(404).json({ error: 'משתמש לא נמצא' });
     }
+    if ((targetUser.teamId || 1) !== (req.user.teamId || 1)) {
+      return res.status(403).json({ error: 'אין הרשאה לעדכן משתמש זה' });
+    }
+
+    const user = await db.updateUserRole(userId, role);
     res.json({
       id: user.id,
       fullName: user.fullName,
@@ -52,7 +57,7 @@ router.patch('/:id/role', requireAdmin, async (req, res) => {
 // GET /api/users/invites - Get all invited emails (admin only)
 router.get('/invites', requireAdmin, async (req, res) => {
   try {
-    const invites = await db.getInvitedEmails();
+    const invites = await db.getInvitedEmails(req.user.teamId || 1);
     res.json(invites);
   } catch (error) {
     console.error('Error fetching invites:', error);
@@ -75,7 +80,7 @@ router.post('/invites', requireAdmin, async (req, res) => {
   }
 
   try {
-    const invite = await db.addInvitedEmail(email);
+    const invite = await db.addInvitedEmail(email, req.user.teamId || 1);
     res.status(201).json(invite);
   } catch (error) {
     console.error('Error adding invite:', error);
@@ -88,10 +93,15 @@ router.delete('/invites/:id', requireAdmin, async (req, res) => {
   const inviteId = parseInt(req.params.id);
 
   try {
-    const deleted = await db.removeInvitedEmail(inviteId);
-    if (!deleted) {
+    const invite = await db.getInviteById(inviteId);
+    if (!invite) {
       return res.status(404).json({ error: 'הזמנה לא נמצאה' });
     }
+    if ((invite.teamId || 1) !== (req.user.teamId || 1)) {
+      return res.status(403).json({ error: 'אין הרשאה למחוק הזמנה זו' });
+    }
+
+    await db.removeInvitedEmail(inviteId);
     res.status(204).send();
   } catch (error) {
     console.error('Error removing invite:', error);

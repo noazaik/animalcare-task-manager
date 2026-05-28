@@ -8,8 +8,8 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Helper: Get tasks for a specific date and shift based on recurrence rules
-async function getTasksForDate(date, shift) {
-  const allTasks = await db.getAllTasks();
+async function getTasksForDate(date, shift, teamId) {
+  const allTasks = await db.getAllTasks(teamId);
   const completions = await db.getCompletionsForDate(date);
   const completionSet = new Set(completions.map(c => c.taskId));
 
@@ -60,9 +60,10 @@ router.get('/', async (req, res) => {
   const dateParam = req.query.date;
   const shift = req.query.shift; // MORNING or EVENING
   const date = dateParam ? new Date(dateParam) : new Date();
+  const teamId = req.user.teamId || 1;
 
   try {
-    const tasks = await getTasksForDate(date, shift);
+    const tasks = await getTasksForDate(date, shift, teamId);
     res.json(tasks);
   } catch (error) {
     console.error('Error fetching tasks:', error);
@@ -86,7 +87,8 @@ router.post('/', requireAdmin, async (req, res) => {
       startTime: startTime || '06:00',
       endTime: endTime || '14:00',
       recurrence: recurrence || 'NONE',
-      shift: shift || 'MORNING'
+      shift: shift || 'MORNING',
+      teamId: req.user.teamId || 1
     });
 
     res.status(201).json(task);
@@ -105,7 +107,7 @@ router.put('/reorder', requireAdmin, async (req, res) => {
   }
 
   try {
-    await db.reorderTasks(taskIds);
+    await db.reorderTasks(taskIds, req.user.teamId || 1);
     res.json({ success: true });
   } catch (error) {
     console.error('Error reordering tasks:', error);
@@ -119,6 +121,14 @@ router.put('/:id', requireAdmin, async (req, res) => {
   const { title, description, dueDate, startTime, endTime, recurrence, shift } = req.body;
 
   try {
+    const existing = await db.getTaskById(taskId);
+    if (!existing) {
+      return res.status(404).json({ error: 'משימה לא נמצאה' });
+    }
+    if ((existing.teamId || 1) !== (req.user.teamId || 1)) {
+      return res.status(403).json({ error: 'אין הרשאה לערוך משימה זו' });
+    }
+
     const updates = {};
     if (title) updates.title = title;
     if (description !== undefined) updates.description = description;
@@ -129,10 +139,6 @@ router.put('/:id', requireAdmin, async (req, res) => {
     if (shift) updates.shift = shift;
 
     const task = await db.updateTask(taskId, updates);
-    if (!task) {
-      return res.status(404).json({ error: 'משימה לא נמצאה' });
-    }
-
     res.json(task);
   } catch (error) {
     console.error('Error updating task:', error);
@@ -145,11 +151,15 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   const taskId = parseInt(req.params.id);
 
   try {
-    const deleted = await db.deleteTask(taskId);
-    if (!deleted) {
+    const existing = await db.getTaskById(taskId);
+    if (!existing) {
       return res.status(404).json({ error: 'משימה לא נמצאה' });
     }
+    if ((existing.teamId || 1) !== (req.user.teamId || 1)) {
+      return res.status(403).json({ error: 'אין הרשאה למחוק משימה זו' });
+    }
 
+    await db.deleteTask(taskId);
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting task:', error);
@@ -167,6 +177,9 @@ router.patch('/:id/complete', async (req, res) => {
     const task = await db.getTaskById(taskId);
     if (!task) {
       return res.status(404).json({ error: 'משימה לא נמצאה' });
+    }
+    if ((task.teamId || 1) !== (req.user.teamId || 1)) {
+      return res.status(403).json({ error: 'אין הרשאה לעדכן משימה זו' });
     }
 
     if (task.recurrence === 'NONE') {

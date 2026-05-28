@@ -46,7 +46,8 @@ router.post('/login', async (req, res) => {
     const token = generateToken({
       userId: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      teamId: user.teamId || 1
     });
 
     res.json({
@@ -55,7 +56,8 @@ router.post('/login', async (req, res) => {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        role: user.role
+        role: user.role,
+        teamId: user.teamId || 1
       }
     });
   } catch (error) {
@@ -77,9 +79,9 @@ router.post('/signup', async (req, res) => {
   }
 
   try {
-    // Check if email is invited
-    const isInvited = await db.isEmailInvited(email);
-    if (!isInvited) {
+    // Check if email is invited and get invite details (including teamId)
+    const invite = await db.getInviteByEmail(email);
+    if (!invite) {
       return res.status(403).json({ error: 'אימייל זה לא הוזמן למערכת. פנה למנהל לקבלת הזמנה.' });
     }
 
@@ -93,13 +95,15 @@ router.post('/signup', async (req, res) => {
       email: email.toLowerCase(),
       password: hashedPassword,
       fullName,
-      role: 'USER'
+      role: 'USER',
+      teamId: invite.teamId
     });
 
     const token = generateToken({
       userId: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      teamId: user.teamId || 1
     });
 
     res.status(201).json({
@@ -108,7 +112,8 @@ router.post('/signup', async (req, res) => {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        role: user.role
+        role: user.role,
+        teamId: user.teamId || 1
       }
     });
   } catch (error) {
@@ -141,16 +146,17 @@ router.post('/google', async (req, res) => {
       user = await db.findUserByEmail(email);
       if (!user) {
         // Check if email is invited before creating new user
-        const isInvited = await db.isEmailInvited(email);
-        if (!isInvited) {
+        const invite = await db.getInviteByEmail(email);
+        if (!invite) {
           return res.status(403).json({ error: 'אימייל זה לא הוזמן למערכת. פנה למנהל לקבלת הזמנה.' });
         }
-        // Create new user
+        // Create new user with team from invite
         user = await db.createUser({
           email: email.toLowerCase(),
           fullName: name,
           googleId,
-          role: 'USER'
+          role: 'USER',
+          teamId: invite.teamId
         });
       }
     }
@@ -158,7 +164,8 @@ router.post('/google', async (req, res) => {
     const token = generateToken({
       userId: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      teamId: user.teamId || 1
     });
 
     res.json({
@@ -167,7 +174,8 @@ router.post('/google', async (req, res) => {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
-        role: user.role
+        role: user.role,
+        teamId: user.teamId || 1
       }
     });
   } catch (error) {
