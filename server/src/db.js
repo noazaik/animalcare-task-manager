@@ -5,6 +5,8 @@ const { Pool } = require('pg');
 const DB_PATH = path.join(__dirname, '..', 'data.json');
 const DATABASE_URL = process.env.DATABASE_URL;
 
+const TEAMS = { 1: 'אנימל קר', 2: 'שירות לאומי', 3: 'תפעול' };
+
 // PostgreSQL connection pool
 let pool = null;
 if (DATABASE_URL) {
@@ -67,14 +69,19 @@ async function initializePostgres() {
       )
     `);
 
+    // Add team_id columns if they don't exist (migration)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS team_id INTEGER DEFAULT 1`);
+    await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS team_id INTEGER DEFAULT 1`);
+    await client.query(`ALTER TABLE invited_emails ADD COLUMN IF NOT EXISTS team_id INTEGER DEFAULT 1`);
+
     // Seed admin user if no users exist
     const userCount = await client.query('SELECT COUNT(*) FROM users');
     if (parseInt(userCount.rows[0].count) === 0) {
       const bcrypt = require('bcryptjs');
       const adminPassword = await bcrypt.hash('admin123', 10);
       await client.query(
-        'INSERT INTO users (email, password, full_name, role) VALUES ($1, $2, $3, $4)',
-        ['admin@example.com', adminPassword, 'מנהל מערכת', 'ADMIN']
+        'INSERT INTO users (email, password, full_name, role, team_id) VALUES ($1, $2, $3, $4, $5)',
+        ['admin@example.com', adminPassword, 'מנהל מערכת', 'ADMIN', 1]
       );
       console.log('Created default admin user: admin@example.com / admin123');
     }
@@ -99,7 +106,12 @@ function readDb() {
   try {
     if (fs.existsSync(DB_PATH)) {
       const data = fs.readFileSync(DB_PATH, 'utf8');
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      // Normalize legacy records without teamId
+      if (parsed.users) parsed.users = parsed.users.map(u => ({ ...u, teamId: u.teamId || 1 }));
+      if (parsed.tasks) parsed.tasks = parsed.tasks.map(t => ({ ...t, teamId: t.teamId || 1 }));
+      if (parsed.invitedEmails) parsed.invitedEmails = parsed.invitedEmails.map(i => ({ ...i, teamId: i.teamId || 1 }));
+      return parsed;
     }
   } catch (error) {
     console.error('Error reading database:', error);
@@ -112,25 +124,32 @@ function writeDb(data) {
 }
 
 // User operations
-async function getAllUsers() {
+async function getAllUsers(teamId) {
   if (pool) {
-    const result = await pool.query('SELECT id, full_name, email, role, created_at FROM users ORDER BY id');
+    const result = await pool.query(
+      'SELECT id, full_name, email, role, team_id, created_at FROM users WHERE team_id = $1 ORDER BY id',
+      [teamId]
+    );
     return result.rows.map(row => ({
       id: row.id,
       fullName: row.full_name,
       email: row.email,
       role: row.role,
+      teamId: row.team_id,
       createdAt: row.created_at
     }));
   }
   const db = readDb();
-  return db.users.map(u => ({
-    id: u.id,
-    fullName: u.fullName || u.username,
-    email: u.email || null,
-    role: u.role,
-    createdAt: u.createdAt
-  }));
+  return db.users
+    .filter(u => (u.teamId || 1) === teamId)
+    .map(u => ({
+      id: u.id,
+      fullName: u.fullName || u.username,
+      email: u.email || null,
+      role: u.role,
+      teamId: u.teamId || 1,
+      createdAt: u.createdAt
+    }));
 }
 
 async function findUserByUsername(username) {
@@ -150,6 +169,7 @@ async function findUserByEmail(email) {
       fullName: row.full_name,
       googleId: row.google_id,
       role: row.role,
+      teamId: row.team_id || 1,
       createdAt: row.created_at
     };
   }
@@ -167,18 +187,38 @@ async function findUserByGoogleId(googleId) {
       email: row.email,
       fullName: row.full_name,
       googleId: row.google_id,
-      role: row.role
+      role: row.role,
+      teamId: row.team_id || 1
     };
   }
   const db = readDb();
   return db.users.find(u => u.googleId === googleId);
 }
 
+async function findUserById(id) {
+  if (pool) {
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (result.rows.length === 0) return null;
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      email: row.email,
+      fullName: row.full_name,
+      role: row.role,
+      teamId: row.team_id || 1
+    };
+  }
+  const db = readDb();
+  const user = db.users.find(u => u.id === id);
+  if (!user) return null;
+  return { ...user, teamId: user.teamId || 1 };
+}
+
 async function createUser(user) {
   if (pool) {
     const result = await pool.query(
-      'INSERT INTO users (email, password, full_name, google_id, role) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [user.email, user.password || null, user.fullName, user.googleId || null, user.role || 'USER']
+      'INSERT INTO users (email, password, full_name, google_id, role, team_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [user.email, user.password || null, user.fullName, user.googleId || null, user.role || 'USER', user.teamId || 1]
     );
     const row = result.rows[0];
     return {
@@ -186,6 +226,7 @@ async function createUser(user) {
       email: row.email,
       fullName: row.full_name,
       role: row.role,
+      teamId: row.team_id || 1,
       createdAt: row.created_at
     };
   }
@@ -193,6 +234,7 @@ async function createUser(user) {
   const newUser = {
     id: db.nextUserId++,
     ...user,
+    teamId: user.teamId || 1,
     createdAt: new Date().toISOString()
   };
   db.users.push(newUser);
@@ -212,7 +254,8 @@ async function updateUserRole(userId, role) {
       id: row.id,
       email: row.email,
       fullName: row.full_name,
-      role: row.role
+      role: row.role,
+      teamId: row.team_id || 1
     };
   }
   const db = readDb();
@@ -224,9 +267,9 @@ async function updateUserRole(userId, role) {
 }
 
 // Task operations
-async function getAllTasks() {
+async function getAllTasks(teamId) {
   if (pool) {
-    const result = await pool.query('SELECT * FROM tasks ORDER BY sort_order');
+    const result = await pool.query('SELECT * FROM tasks WHERE team_id = $1 ORDER BY sort_order', [teamId]);
     return result.rows.map(row => ({
       id: row.id,
       title: row.title,
@@ -238,12 +281,15 @@ async function getAllTasks() {
       shift: row.shift,
       sortOrder: row.sort_order,
       isComplete: row.is_complete,
+      teamId: row.team_id || 1,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
   }
   const db = readDb();
-  return db.tasks.sort((a, b) => a.sortOrder - b.sortOrder);
+  return db.tasks
+    .filter(t => (t.teamId || 1) === teamId)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 async function getTaskById(id) {
@@ -261,7 +307,8 @@ async function getTaskById(id) {
       recurrence: row.recurrence,
       shift: row.shift,
       sortOrder: row.sort_order,
-      isComplete: row.is_complete
+      isComplete: row.is_complete,
+      teamId: row.team_id || 1
     };
   }
   const db = readDb();
@@ -270,13 +317,17 @@ async function getTaskById(id) {
 
 async function createTask(task) {
   if (pool) {
-    const sortResult = await pool.query('SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM tasks');
+    const teamId = task.teamId || 1;
+    const sortResult = await pool.query(
+      'SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM tasks WHERE team_id = $1',
+      [teamId]
+    );
     const nextOrder = sortResult.rows[0].next_order;
 
     const result = await pool.query(
-      `INSERT INTO tasks (title, description, due_date, start_time, end_time, recurrence, shift, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [task.title, task.description, task.dueDate, task.startTime, task.endTime, task.recurrence, task.shift, nextOrder]
+      `INSERT INTO tasks (title, description, due_date, start_time, end_time, recurrence, shift, sort_order, team_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [task.title, task.description, task.dueDate, task.startTime, task.endTime, task.recurrence, task.shift, nextOrder, teamId]
     );
     const row = result.rows[0];
     return {
@@ -289,14 +340,18 @@ async function createTask(task) {
       recurrence: row.recurrence,
       shift: row.shift,
       sortOrder: row.sort_order,
-      isComplete: row.is_complete
+      isComplete: row.is_complete,
+      teamId: row.team_id || 1
     };
   }
   const db = readDb();
-  const maxSortOrder = db.tasks.reduce((max, t) => Math.max(max, t.sortOrder || 0), 0);
+  const teamId = task.teamId || 1;
+  const teamTasks = db.tasks.filter(t => (t.teamId || 1) === teamId);
+  const maxSortOrder = teamTasks.reduce((max, t) => Math.max(max, t.sortOrder || 0), 0);
   const newTask = {
     id: db.nextTaskId++,
     ...task,
+    teamId,
     sortOrder: maxSortOrder + 1,
     isComplete: false,
     createdAt: new Date().toISOString(),
@@ -340,7 +395,8 @@ async function updateTask(id, updates) {
       endTime: row.end_time,
       recurrence: row.recurrence,
       shift: row.shift,
-      isComplete: row.is_complete
+      isComplete: row.is_complete,
+      teamId: row.team_id || 1
     };
   }
   const db = readDb();
@@ -371,13 +427,16 @@ async function deleteTask(id) {
   return true;
 }
 
-async function reorderTasks(taskIds) {
+async function reorderTasks(taskIds, teamId) {
   if (pool) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       for (let i = 0; i < taskIds.length; i++) {
-        await client.query('UPDATE tasks SET sort_order = $1 WHERE id = $2', [i, taskIds[i]]);
+        await client.query(
+          'UPDATE tasks SET sort_order = $1 WHERE id = $2 AND team_id = $3',
+          [i, taskIds[i], teamId]
+        );
       }
       await client.query('COMMIT');
     } catch (e) {
@@ -390,7 +449,7 @@ async function reorderTasks(taskIds) {
   }
   const db = readDb();
   taskIds.forEach((id, index) => {
-    const task = db.tasks.find(t => t.id === id);
+    const task = db.tasks.find(t => t.id === id && (t.teamId || 1) === teamId);
     if (task) {
       task.sortOrder = index;
     }
@@ -476,50 +535,74 @@ async function cleanupOldCompletions() {
 }
 
 // Invited emails operations
-async function getInvitedEmails() {
+async function getInvitedEmails(teamId) {
   if (pool) {
-    const result = await pool.query('SELECT id, email, created_at FROM invited_emails ORDER BY created_at DESC');
+    const result = await pool.query(
+      'SELECT id, email, team_id, created_at FROM invited_emails WHERE team_id = $1 ORDER BY created_at DESC',
+      [teamId]
+    );
     return result.rows.map(row => ({
       id: row.id,
       email: row.email,
+      teamId: row.team_id || 1,
       createdAt: row.created_at
     }));
   }
   const db = readDb();
-  return db.invitedEmails || [];
+  return (db.invitedEmails || []).filter(i => (i.teamId || 1) === teamId);
 }
 
-async function isEmailInvited(email) {
+async function getInviteByEmail(email) {
   if (pool) {
-    const result = await pool.query('SELECT id FROM invited_emails WHERE LOWER(email) = LOWER($1)', [email]);
-    return result.rows.length > 0;
+    const result = await pool.query('SELECT * FROM invited_emails WHERE LOWER(email) = LOWER($1)', [email]);
+    if (result.rows.length === 0) return null;
+    const row = result.rows[0];
+    return { id: row.id, email: row.email, teamId: row.team_id || 1, createdAt: row.created_at };
   }
   const db = readDb();
-  return (db.invitedEmails || []).some(inv => inv.email.toLowerCase() === email.toLowerCase());
+  const invite = (db.invitedEmails || []).find(inv => inv.email.toLowerCase() === email.toLowerCase());
+  if (!invite) return null;
+  return { ...invite, teamId: invite.teamId || 1 };
 }
 
-async function addInvitedEmail(email) {
+async function getInviteById(id) {
+  if (pool) {
+    const result = await pool.query('SELECT * FROM invited_emails WHERE id = $1', [id]);
+    if (result.rows.length === 0) return null;
+    const row = result.rows[0];
+    return { id: row.id, email: row.email, teamId: row.team_id || 1, createdAt: row.created_at };
+  }
+  const db = readDb();
+  const invite = (db.invitedEmails || []).find(inv => inv.id === id);
+  if (!invite) return null;
+  return { ...invite, teamId: invite.teamId || 1 };
+}
+
+async function addInvitedEmail(email, teamId) {
+  const tid = teamId || 1;
   if (pool) {
     const result = await pool.query(
-      'INSERT INTO invited_emails (email) VALUES (LOWER($1)) ON CONFLICT (email) DO NOTHING RETURNING *',
-      [email]
+      'INSERT INTO invited_emails (email, team_id) VALUES (LOWER($1), $2) ON CONFLICT (email) DO NOTHING RETURNING *',
+      [email, tid]
     );
     if (result.rows.length === 0) {
-      // Email already exists
       const existing = await pool.query('SELECT * FROM invited_emails WHERE LOWER(email) = LOWER($1)', [email]);
-      return { id: existing.rows[0].id, email: existing.rows[0].email, createdAt: existing.rows[0].created_at };
+      const row = existing.rows[0];
+      return { id: row.id, email: row.email, teamId: row.team_id || 1, createdAt: row.created_at };
     }
-    return { id: result.rows[0].id, email: result.rows[0].email, createdAt: result.rows[0].created_at };
+    const row = result.rows[0];
+    return { id: row.id, email: row.email, teamId: row.team_id || 1, createdAt: row.created_at };
   }
   const db = readDb();
   if (!db.invitedEmails) db.invitedEmails = [];
 
   const existing = db.invitedEmails.find(inv => inv.email.toLowerCase() === email.toLowerCase());
-  if (existing) return existing;
+  if (existing) return { ...existing, teamId: existing.teamId || 1 };
 
   const newInvite = {
     id: Date.now(),
     email: email.toLowerCase(),
+    teamId: tid,
     createdAt: new Date().toISOString()
   };
   db.invitedEmails.push(newInvite);
@@ -550,6 +633,7 @@ if (pool) {
 
 module.exports = {
   pool,
+  TEAMS,
   initializePostgres,
   readDb,
   writeDb,
@@ -557,6 +641,7 @@ module.exports = {
   findUserByUsername,
   findUserByEmail,
   findUserByGoogleId,
+  findUserById,
   createUser,
   updateUserRole,
   getAllTasks,
@@ -569,7 +654,8 @@ module.exports = {
   setCompletion,
   cleanupOldCompletions,
   getInvitedEmails,
-  isEmailInvited,
+  getInviteByEmail,
+  getInviteById,
   addInvitedEmail,
   removeInvitedEmail
 };

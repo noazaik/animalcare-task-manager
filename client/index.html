@@ -988,6 +988,7 @@ body {
 const { useState, useEffect, useCallback, createContext, useContext } = React;
 
 const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : '/api';
+const TEAM_NAMES = { 1: 'אנימל קר', 2: 'שירות לאומי', 3: 'תפעול' };
 
 // Auth Context
 const AuthContext = createContext();
@@ -1075,11 +1076,16 @@ function AuthProvider({ children }) {
 
   const isActualAdmin = user?.role === 'ADMIN';
   const isAdmin = isActualAdmin && !viewAsUser;
+  const teamName = TEAM_NAMES[user?.teamId || 1];
+
+  React.useEffect(() => {
+    document.title = `מנהל משימות ${teamName}`;
+  }, [teamName]);
 
   const toggleViewAsUser = () => setViewAsUser(!viewAsUser);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, googleLogin, logout, isAdmin, isActualAdmin, viewAsUser, toggleViewAsUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, signup, googleLogin, logout, isAdmin, isActualAdmin, viewAsUser, toggleViewAsUser, teamName }}>
       {children}
     </AuthContext.Provider>
   );
@@ -1203,11 +1209,11 @@ function LoginForm() {
 
 // Header
 function Header({ currentPage, onNavigate }) {
-  const { user, logout, isAdmin, isActualAdmin, viewAsUser, toggleViewAsUser } = useAuth();
+  const { user, logout, isAdmin, isActualAdmin, viewAsUser, toggleViewAsUser, teamName } = useAuth();
   return (
     <header className="header">
       <div className="header-content">
-        <h1>מנהל משימות אנימל קר</h1>
+        <h1>מנהל משימות {teamName}</h1>
         <div className="header-actions">
           {isActualAdmin && onNavigate && (
             <nav className="header-nav">
@@ -1245,7 +1251,7 @@ function SettingsPage() {
   const [updatingUserId, setUpdatingUserId] = useState(null);
   const [newInviteEmail, setNewInviteEmail] = useState('');
   const [isAddingInvite, setIsAddingInvite] = useState(false);
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, teamName } = useAuth();
 
   const fetchUsers = async () => {
     try {
@@ -1345,7 +1351,7 @@ function SettingsPage() {
 
   return (
     <div className="settings-container">
-      <h2 className="settings-title">הזמנת משתמשים</h2>
+      <h2 className="settings-title">הזמנת משתמשים — {teamName}</h2>
       <form onSubmit={handleAddInvite} className="invite-form">
         <input
           type="email"
@@ -1526,6 +1532,8 @@ function TaskItem({ task, onToggleComplete, onEdit, onDelete, onDragStart, onDra
 
 // Task Form
 function TaskForm({ task, selectedShift, onSubmit, onCancel }) {
+  const { user } = useAuth();
+  const hasEveningShift = (user?.teamId || 1) === 1;
   const today = new Date().toISOString().split('T')[0];
   const [formData, setFormData] = useState({
     title: task?.title || '',
@@ -1566,6 +1574,7 @@ function TaskForm({ task, selectedShift, onSubmit, onCancel }) {
             <label>תיאור</label>
             <textarea value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} rows={3} disabled={isSubmitting} />
           </div>
+          {hasEveningShift && (
           <div className="form-group">
             <label>משמרת</label>
             <select value={formData.shift} onChange={(e) => setFormData({...formData, shift: e.target.value})} disabled={isSubmitting}>
@@ -1573,6 +1582,7 @@ function TaskForm({ task, selectedShift, onSubmit, onCancel }) {
               <option value="EVENING">משמרת ערב</option>
             </select>
           </div>
+          )}
           <div className="form-group">
             <label>תאריך</label>
             <input type="date" value={formData.dueDate} onChange={(e) => setFormData({...formData, dueDate: e.target.value})} disabled={isSubmitting} />
@@ -1646,7 +1656,13 @@ function TaskList() {
   const [editingTask, setEditingTask] = useState(null);
   const [draggedId, setDraggedId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const hasEveningShift = (user?.teamId || 1) === 1;
+
+  // Lock shift to MORNING for teams without evening shift
+  useEffect(() => {
+    if (!hasEveningShift) setSelectedShift('MORNING');
+  }, [hasEveningShift]);
 
   // Touch drag state
   const touchStartY = React.useRef(null);
@@ -1828,7 +1844,7 @@ function TaskList() {
   return (
     <div>
       <TaskFilters selectedDate={selectedDate} onDateChange={setSelectedDate} />
-      <ShiftTabs selectedShift={selectedShift} onShiftChange={setSelectedShift} />
+      {hasEveningShift && <ShiftTabs selectedShift={selectedShift} onShiftChange={setSelectedShift} />}
       <div className="task-list-header">
         {isAdmin && (
           <button onClick={() => setShowForm(true)} className="btn-primary">+ משימה חדשה</button>
